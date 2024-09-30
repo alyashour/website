@@ -1,0 +1,42 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'  # This will trigger the workflow on any tag that starts with 'v'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v2
+
+    - name: Set up Node.js
+      uses: actions/setup-node@v2
+      with:
+        node-version: '16'  # Adjust the Node.js version if needed
+
+    - name: Install dependencies and build Frontend
+      run: |
+        npm install
+        npm run build
+
+    - name: Install dependencies (Backend)
+      run: |
+        cd backend
+        npm install
+
+    - name: Deploy Files to Server
+      env:
+        SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+        SERVER_IP: ${{ secrets.SERVER_IP }}
+        PORT: ${{ secrets.SERVER_PORT }}
+        SERVER_USER: ${{ secrets.SERVER_USER }}
+      run: |
+        echo "$SSH_PRIVATE_KEY" > deploy
+        chmod 600 deploy
+        rsync -avzu --delete --exclude='node_modules' -e "ssh -i deploy -o StrictHostKeyChecking=no -p $PORT" dist/ $SERVER_USER@$SERVER_IP:/var/www/website/frontend/dist/
+        rsync -avzu --delete --exclude='node_modules' -e "ssh -i deploy -o StrictHostKeyChecking=no -p $PORT" backend/ $SERVER_USER@$SERVER_IP:/var/www/website/backend/
